@@ -1,0 +1,14 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-job-mercy-fuel",
+  "version": "0.6.0",
+  "description": "Mercy Fuel & Mart stock and delivery work.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-jobs",
+    "pm-interactions"
+  ],
+  "heartbeat": {
+    "events": {}
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-world",
+  "version": "0.6.0",
+  "description": "Room-based movement and world interactions for Port Mercy.",
+  "server": "server.mjs",
+  "dependencies": [],
+  "heartbeat": {
+    "events": {
+      "world:itemTaken": "full",
+      "world:roomChanged": "never",
+      "crime:witnessed": "full"
+    }
+  },
+  "clientActions": [
+    "player:move",
+    "world:take"
+  ]
+}

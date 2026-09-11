@@ -1,0 +1,18 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-chat",
+  "version": "0.6.0",
+  "description": "Room and city chat transport. Player chat is not sent to the AI heartbeat by default.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-world"
+  ],
+  "heartbeat": {
+    "events": {
+      "chat:sent": "never"
+    }
+  },
+  "clientActions": [
+    "chat:send"
+  ]
+}

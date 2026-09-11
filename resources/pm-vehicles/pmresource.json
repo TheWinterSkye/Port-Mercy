@@ -1,0 +1,24 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-vehicles",
+  "version": "0.6.1",
+  "description": "Room-based vehicles, locks, and vehicle storage. No 3D entity assumptions.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-inventory",
+    "pm-phone",
+    "pm-interactions"
+  ],
+  "heartbeat": {
+    "events": {
+      "vehicle:storageOpened": "never",
+      "vehicle:lockChanged": "summary",
+      "vehicle:moved": "summary"
+    }
+  },
+  "clientActions": [
+    "vehicle:openStorage",
+    "vehicle:setLock",
+    "vehicle:listMine"
+  ]
+}

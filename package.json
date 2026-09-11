@@ -1,0 +1,15 @@
+{
+  "name": "port-mercy",
+  "private": true,
+  "version": "0.6.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @portmercy/web run dev",
+    "dev:server": "npm --workspace @portmercy/server run dev",
+    "build": "npm --workspace @portmercy/web run build && npm --workspace @portmercy/server run build",
+    "typecheck": "npm --workspace @portmercy/web run typecheck && npm --workspace @portmercy/server run typecheck"
+  }
+}

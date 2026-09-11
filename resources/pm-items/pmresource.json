@@ -1,0 +1,15 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-items",
+  "version": "0.6.0",
+  "description": "Basic usable-item handlers for consumables and ordinary items; device apps live in their own resources.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-inventory"
+  ],
+  "heartbeat": {
+    "events": {
+      "item:consumed": "never"
+    }
+  }
+}

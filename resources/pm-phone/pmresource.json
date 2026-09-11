@@ -1,0 +1,29 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-phone",
+  "version": "0.6.0",
+  "description": "Text-first phone platform with app registry, contacts, messages and typed live calls.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-inventory"
+  ],
+  "heartbeat": {
+    "events": {
+      "phone:opened": "never",
+      "phone:messageSent": "never",
+      "phone:callStarted": "never",
+      "phone:callAnswered": "never",
+      "phone:callText": "never",
+      "phone:callEnded": "never"
+    }
+  },
+  "clientActions": [
+    "phone:open",
+    "phone:sendMessage",
+    "phone:startCall",
+    "phone:answerCall",
+    "phone:declineCall",
+    "phone:sendCallText",
+    "phone:endCall"
+  ]
+}

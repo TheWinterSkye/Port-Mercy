@@ -1,0 +1,14 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-job-ritas-diner",
+  "version": "0.6.0",
+  "description": "Rita's Diner cleanup and dishwashing work.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-jobs",
+    "pm-interactions"
+  ],
+  "heartbeat": {
+    "events": {}
+  }
+}

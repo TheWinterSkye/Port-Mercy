@@ -1,0 +1,23 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-travel",
+  "version": "0.6.0",
+  "description": "Authoritative timed travel sessions for room-based vehicles.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-vehicles"
+  ],
+  "heartbeat": {
+    "events": {
+      "travel:started": "never",
+      "travel:arrived": "summary",
+      "travel:cancelled": "never",
+      "travel:paused": "never",
+      "travel:resumed": "never"
+    }
+  },
+  "clientActions": [
+    "travel:start",
+    "travel:cancel"
+  ]
+}

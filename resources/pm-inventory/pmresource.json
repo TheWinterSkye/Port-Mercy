@@ -1,0 +1,26 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-inventory",
+  "version": "0.6.0",
+  "description": "Authoritative inventory actions, access hooks, item-use registry, and secondary containers.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-world"
+  ],
+  "heartbeat": {
+    "events": {
+      "inventory:opened": "never",
+      "inventory:closed": "never",
+      "inventory:itemUsed": "never",
+      "inventory:itemDropped": "never",
+      "inventory:itemMoved": "never"
+    }
+  },
+  "clientActions": [
+    "inventory:open",
+    "inventory:close",
+    "inventory:use",
+    "inventory:drop",
+    "inventory:move"
+  ]
+}

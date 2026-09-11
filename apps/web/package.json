@@ -1,0 +1,25 @@
+{
+  "name": "@portmercy/web",
+  "private": true,
+  "version": "0.6.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@portmercy/protocol": "*",
+    "colyseus.js": "^0.16.22",
+    "pixi.js": "^8.6.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}

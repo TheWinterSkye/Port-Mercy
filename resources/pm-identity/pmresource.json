@@ -1,0 +1,15 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-identity",
+  "version": "0.6.0",
+  "description": "Identity documents and licenses.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-inventory"
+  ],
+  "heartbeat": {
+    "events": {
+      "identity:documentViewed": "never"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-jobs",
+  "version": "0.6.0",
+  "description": "Shared job registry, duty state, and job-task actions.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-world",
+    "pm-phone"
+  ],
+  "heartbeat": {
+    "events": {
+      "job:clockedIn": "summary",
+      "job:clockedOut": "summary",
+      "job:taskStarted": "never",
+      "job:taskCompleted": "full"
+    }
+  },
+  "clientActions": [
+    "job:clockIn",
+    "job:clockOut",
+    "job:performAvailable",
+    "job:listAvailable"
+  ]
+}

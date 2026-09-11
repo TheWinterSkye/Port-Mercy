@@ -1,0 +1,20 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-chases",
+  "version": "0.6.0",
+  "description": "Turn-based chase state machine that can interrupt timed travel.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-travel"
+  ],
+  "heartbeat": {
+    "events": {
+      "chase:started": "full",
+      "chase:turnResolved": "summary",
+      "chase:ended": "full"
+    }
+  },
+  "clientActions": [
+    "chase:choose"
+  ]
+}

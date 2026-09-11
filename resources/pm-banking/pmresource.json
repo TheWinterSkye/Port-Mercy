@@ -1,0 +1,19 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-banking",
+  "version": "0.6.0",
+  "description": "Player and future shared/business account actions with phone app registration.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-phone"
+  ],
+  "heartbeat": {
+    "events": {
+      "bank:transferCompleted": "never"
+    }
+  },
+  "clientActions": [
+    "bank:getAccounts",
+    "bank:transfer"
+  ]
+}

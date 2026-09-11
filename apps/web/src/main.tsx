@@ -65,7 +65,15 @@ function drawScene(app:Application,room:RoomDef){
 
 function Scene({room}:{room:RoomDef}){
  const host=useRef<HTMLDivElement>(null);
- useEffect(()=>{if(!host.current)return;let disposed=false;const app=new Application();(async()=>{await app.init({resizeTo:host.current!,background:'#0b0d10',antialias:true});if(disposed)return;host.current!.appendChild(app.canvas);drawScene(app,room)})();return()=>{disposed=true;app.destroy(true,{children:true})}},[room.id]);
+ const hasRoomArt=room.id==='southward.gas.forecourt';
+ useEffect(()=>{
+   if(hasRoomArt||!host.current)return;
+   let disposed=false;
+   const app=new Application();
+   (async()=>{await app.init({resizeTo:host.current!,background:'#0b0d10',antialias:true});if(disposed)return;host.current!.appendChild(app.canvas);drawScene(app,room)})();
+   return()=>{disposed=true;app.destroy(true,{children:true})};
+ },[room.id,hasRoomArt]);
+ if(hasRoomArt)return <div className="scene roomArtScene"><img className="roomArt" src="/assets/rooms/mercy-fuel-exterior.webp" alt="Mercy Fuel exterior at night"/></div>;
  return <div className="scene" ref={host}/>;
 }
 

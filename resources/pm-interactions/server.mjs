@@ -3,6 +3,7 @@ export async function setup(ctx) {
   ctx.exports.register('register', (targetId, option) => {
     if (!targetId || !option?.id || !option?.label || !option?.action) throw new Error('Invalid interaction option.');
     const list = targets.get(targetId) ?? [];
+    if(list.some(row=>row.id===option.id)) throw new Error(`Interaction already registered: ${targetId}:${option.id}`);
     list.push(structuredClone(option)); targets.set(targetId, list);
   });
   ctx.exports.register('list', targetId => structuredClone(targets.get(targetId) ?? []));
@@ -13,11 +14,13 @@ export async function setup(ctx) {
     if (option.jobId && option.jobId !== player.jobId) return false;
     if (option.onDuty === true && !player.onDuty) return false;
     return true;
-  });
+  }).sort((a,b)=>(a.order??100)-(b.order??100));
 
   ctx.actions.register('interaction:list', async (action, payload) => {
     const targetId = String(payload?.targetId || `room:${action.roomId}`);
-    return { targetId, options: visible(action, targetId) };
+    const value={ targetId, options: visible(action, targetId) };
+    ctx.host.send(action.actorId,'interaction_list',value);
+    return value;
   });
 
   ctx.actions.register('interaction:run', async (action, payload) => {

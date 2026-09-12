@@ -15,6 +15,7 @@ export async function setup(ctx) {
     tasks: {
       dish_pit: {
         label: 'Clear the dish pit and mop behind the counter',
+        durationMs: 10000,
         pay: 12,
         stress: 3,
         playerText: 'You clear a rack of dishes and mop behind the counter. +$12, +3 stress.',
@@ -22,5 +23,5 @@ export async function setup(ctx) {
       }
     }
   });
-  registerInteraction('room:southward.diner', { id: 'diner-cleanup-shift', label: 'Wash dishes', action: 'job:performAvailable', payload: {}, roomId: 'southward.diner' });
+  registerInteraction('room:southward.diner', { id: 'diner-cleanup-shift', label: 'Wash dishes', action: 'job:performAvailable', payload: {}, roomId: 'southward.diner', order: 10 });
 }

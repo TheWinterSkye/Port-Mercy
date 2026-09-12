@@ -47,9 +47,16 @@ export async function setup(ctx) {
     return { onDuty: false };
   });
 
+  const cancelTask = (actorId, reason='interrupted') => {
+    const session=activeTasks.get(actorId);if(!session)return null;
+    clearTimeout(session.timer);activeTasks.delete(actorId);ctx.host.endActivity(actorId,'work');
+    const player=ctx.host.getPlayer(actorId);if(player)ctx.host.send(actorId,'job_task',{status:'cancelled',jobId:session.jobId,taskId:session.taskId,reason});
+    return session;
+  };
+
   async function finish(session){
     if(activeTasks.get(session.actorId)?.id!==session.id)return;
-    activeTasks.delete(session.actorId);
+    activeTasks.delete(session.actorId);ctx.host.endActivity(session.actorId,'work');
     const player=ctx.host.getPlayer(session.actorId);
     if(!player||player.roomId!==session.roomId||player.jobId!==session.jobId||!player.onDuty){
       if(player)ctx.host.send(session.actorId,'event',{text:`${session.label} was interrupted before completion.`});
@@ -70,11 +77,13 @@ export async function setup(ctx) {
     if(!job||!player)throw new Error('That job is unavailable.');
     if(player.roomId!==job.roomId)throw new Error('You are not at the job site.');
     if(player.jobId!==job.id||!player.onDuty)throw new Error('You are not clocked in for this job.');
+    if(player.stress>=95)throw new Error('You are too exhausted to start another task right now.');
     const task=job.tasks?.[payload?.taskId]; if(!task)throw new Error('That task is unavailable.');
     const durationMs=Math.max(1500,Math.min(300000,Number(task.durationMs||10000)));
-    const startedAt=Date.now(),endsAt=startedAt+durationMs;
-    const session={id:`${action.actorId}:${startedAt}`,actorId:action.actorId,jobId:job.id,taskId:payload.taskId,label:task.label,roomId:player.roomId,pay:Number(task.pay||0),stress:Number(task.stress||0),playerText:task.playerText,roomText:task.roomText,startedAt,endsAt,timer:null};
-    session.timer=setTimeout(()=>void finish(session).catch(error=>console.error('[jobs] task completion failed',error)),durationMs);
+    const startedAt=Date.now(),endsAt=startedAt+durationMs,id=`${action.actorId}:${startedAt}`;
+    const activity=ctx.host.beginActivity(action.actorId,'work',id);if(!activity?.ok)throw new Error(activity?.reason||'You cannot start work right now.');
+    const session={id,actorId:action.actorId,jobId:job.id,taskId:payload.taskId,label:task.label,roomId:player.roomId,pay:Number(task.pay||0),stress:Number(task.stress||0),playerText:task.playerText,roomText:task.roomText,startedAt,endsAt,timer:null};
+    session.timer=setTimeout(()=>void finish(session).catch(error=>console.error('[jobs] task completion failed',error)),durationMs);session.timer.unref?.();
     activeTasks.set(action.actorId,session);
     ctx.host.send(action.actorId,'job_task',{status:'started',jobId:job.id,taskId:payload.taskId,label:task.label,startedAt,endsAt,durationMs});
     ctx.host.send(action.actorId,'event',{text:`You start ${task.label.toLowerCase()}.`});
@@ -92,6 +101,8 @@ export async function setup(ctx) {
     return started.value;
   });
 
+  ctx.events.on('player:left', event => {if(event.actorId)cancelTask(event.actorId,'disconnected');});
+  ctx.lifecycle.onDispose(()=>{for(const session of activeTasks.values())clearTimeout(session.timer);activeTasks.clear();});
   ctx.heartbeat.snapshot('registry',()=>[...jobs.values()].map(job=>({id:job.id,label:job.label,roomId:job.roomId,status:job.status||'available',demand:job.demand||'unknown'})));
   ctx.heartbeat.snapshot('active-tasks',()=>[...activeTasks.values()].map(({timer,...task})=>task));
 }

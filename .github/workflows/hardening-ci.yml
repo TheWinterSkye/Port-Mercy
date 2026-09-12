@@ -1,4 +1,4 @@
-name: Port Mercy hardening pass
+name: Port Mercy hardening materialize
 on:
   push:
     branches: [hardening-0.8]
@@ -37,6 +37,13 @@ type VehicleStoragePayload = { vehicleId?:string; compartment?:'trunk'|'glovebox
           s=s.replace("roomSnapshot:()=>WORLD_ROOM_IDS.map(id=>({id,...WORLD_CATALOG[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),","roomSnapshot:()=>WORLD_ROOM_IDS.map(id=>({...WORLD_CATALOG[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),")
           p.write_text(s)
           PY
+      - name: Commit materialized hardening source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps packages resources package.json
+          git diff --cached --quiet || git commit -m "Materialize hardening source changes"
+          git push origin HEAD:hardening-0.8
       - name: Install
         run: npm install --no-audit --no-fund
       - name: Tests
@@ -45,11 +52,3 @@ type VehicleStoragePayload = { vehicleId?:string; compartment?:'trunk'|'glovebox
         run: npm run typecheck
       - name: Build
         run: npm run build
-      - name: Commit verified hardening pass
-        run: |
-          rm -rf .hardening .github/workflows/hardening-ci.yml .hardening-trigger
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Harden world catalog, persistence, jobs, and interactions [hardening-applied]"
-          git push origin HEAD:hardening-0.8

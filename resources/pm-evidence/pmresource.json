@@ -1,15 +1,18 @@
 {
   "$schema": "../pmresource.schema.json",
   "name": "pm-evidence",
-  "version": "0.6.0",
-  "description": "Room-based evidence records and decay hooks for crime/police systems; no arcade heat meter.",
+  "version": "0.8.0",
+  "description": "Persistent room-based evidence and concrete crime incident lifecycle; no arcade heat meter.",
   "server": "server.mjs",
   "dependencies": ["pm-world"],
   "heartbeat": {
     "events": {
       "evidence:created": "summary",
       "evidence:collected": "full",
-      "evidence:expired": "never"
+      "evidence:expired": "never",
+      "crime:reported": "full",
+      "crime:responding": "full",
+      "crime:resolved": "summary"
     }
   },
   "clientActions": []

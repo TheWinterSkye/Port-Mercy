@@ -1,5 +1,5 @@
 export type Direction = 'north'|'south'|'east'|'west'|'inside'|'outside'|'up'|'down';
-export type RoomId = 'southward.gas.forecourt'|'southward.diner'|'southward.alley'|'southward.apartment.lobby';
+export type RoomId = 'southward.gas.forecourt'|'southward.mercyfuel.interior'|'southward.diner'|'southward.alley'|'southward.apartment.lobby';
 
 export type DriverLicenseData = {
   documentType:'drivers_license';
@@ -54,6 +54,8 @@ export type RoomView = {
   id:RoomId;
   name:string;
   district:string;
+  environment:'outdoor'|'indoor';
+  weatherZone:string;
   description:string;
   exits:Partial<Record<Direction,RoomId>>;
   objects:WorldObject[];
@@ -137,3 +139,5 @@ export type GameActionName =
 
 export type GameActionRequest = { name:GameActionName|string; payload?:unknown };
 export type GameActionResult = { name:string; correlationId:string; ok:boolean; reason?:string };
+
+export type WeatherState={zone:string;type:'clear'|'rain'|'fog'|'snow'|'storm';label:string;detail:string;intensity:number;seed:number;startedAt:number;nextAt:number};

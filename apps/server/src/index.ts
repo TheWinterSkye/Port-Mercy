@@ -7,7 +7,7 @@ import { Schema, MapSchema, defineTypes } from '@colyseus/schema';
 import { HeartbeatService, type HeartbeatResult, type WorldMutation, type WorldSnapshot } from './heartbeat.js';
 import { ResourceRuntime, resolveResourcesDirectory } from './runtime.js';
 
-type RoomId = 'southward.gas.forecourt'|'southward.diner'|'southward.alley'|'southward.apartment.lobby';
+type RoomId = 'southward.gas.forecourt'|'southward.mercyfuel.interior'|'southward.diner'|'southward.alley'|'southward.apartment.lobby';
 type ChatScope = 'room'|'global';
 
 type ChatPayload = { scope?:ChatScope; text?:string };
@@ -16,17 +16,19 @@ type InventoryOpenPayload = { inventoryType?:string; inventoryId?:string; compar
 type VehicleStoragePayload = { vehicleId?:string; compartment?:'trunk'|'glovebox' };
 
 const EXITS:Record<RoomId,Record<string,RoomId>> = {
-  'southward.gas.forecourt': { west:'southward.diner', east:'southward.alley', inside:'southward.apartment.lobby' },
+  'southward.gas.forecourt': { west:'southward.diner', east:'southward.alley', inside:'southward.mercyfuel.interior' },
+  'southward.mercyfuel.interior': { outside:'southward.gas.forecourt' },
   'southward.diner': { east:'southward.gas.forecourt' },
   'southward.alley': { west:'southward.gas.forecourt' },
-  'southward.apartment.lobby': { outside:'southward.gas.forecourt' }
+  'southward.apartment.lobby': {}
 };
 
-const ROOM_NAMES:Record<RoomId,{name:string;district:string}> = {
-  'southward.gas.forecourt': {name:'Mercy Fuel & Mart',district:'South Ward'},
-  'southward.diner': {name:"Rita's Diner",district:'South Ward'},
-  'southward.alley': {name:'Mercy Service Alley',district:'South Ward'},
-  'southward.apartment.lobby': {name:'Marrow Apartments',district:'South Ward'},
+const ROOM_NAMES:Record<RoomId,{name:string;district:string;environment:'outdoor'|'indoor';weatherZone:string}> = {
+  'southward.gas.forecourt': {name:'Mercy Fuel & Mart',district:'South Ward',environment:'outdoor',weatherZone:'southward'},
+  'southward.mercyfuel.interior': {name:'Mercy Fuel · Store Interior',district:'South Ward',environment:'indoor',weatherZone:'southward'},
+  'southward.diner': {name:"Rita's Diner",district:'South Ward',environment:'indoor',weatherZone:'southward'},
+  'southward.alley': {name:'Mercy Service Alley',district:'South Ward',environment:'outdoor',weatherZone:'southward'},
+  'southward.apartment.lobby': {name:'Marrow Apartments',district:'South Ward',environment:'indoor',weatherZone:'southward'},
 };
 
 const VALID_ROOM_IDS = new Set<RoomId>(Object.keys(ROOM_NAMES) as RoomId[]);
@@ -62,6 +64,10 @@ defineTypes(WorldState,{players:{map:Player},heartbeatMode:'string',heartbeatLas
 type ChatMessage = { id:string; scope:ChatScope; from:string; text:string; roomId:RoomId; sentAt:number };
 type Incident = {id:string;type:string;roomId:RoomId;status:string;summary:string;createdAt:number};
 type VehicleRecord = {id:string;label:string;roomId:RoomId;status:string;locked:boolean;ownerId:string|null;registration:string;fuel:number;condition:number};
+type WeatherKind='clear'|'rain'|'fog'|'snow'|'storm';
+type WeatherWire={zone:string;type:WeatherKind;label:string;detail:string;intensity:number;seed:number;startedAt:number;nextAt:number};
+const WEATHER_STEPS:Array<Omit<WeatherWire,'zone'|'seed'|'startedAt'|'nextAt'>>=[{type:'rain',label:'Cold rain',detail:'harbor wind · wet pavement',intensity:.7},{type:'fog',label:'Dense fog',detail:'low visibility · harbor mist',intensity:.65},{type:'clear',label:'Clear night',detail:'cool air · dry streets',intensity:0},{type:'snow',label:'Wet snow',detail:'slush building on exposed streets',intensity:.55},{type:'storm',label:'Harbor squall',detail:'heavy rain · hard gusts',intensity:.9}];
+function makeWeather(index:number):WeatherWire{const base=WEATHER_STEPS[index%WEATHER_STEPS.length],now=Date.now();return {zone:'southward',...base,seed:Math.floor(Math.random()*1_000_000),startedAt:now,nextAt:now+30*60_000}}
 
 type InventoryWireItem = {id:string;templateId:string;name:string;kind:string;quantity:number;weight:number;description:string;usable:boolean;droppable:boolean;metadata:Record<string,unknown>};
 
@@ -103,6 +109,8 @@ class WorldRoom extends Room<WorldState> {
   private chatHistory:ChatMessage[]=[];
   private recentActivity = new Map<RoomId,string[]>();
   private incidents:Incident[]=[];
+  private weatherIndex=0;
+  private weather:WeatherWire=makeWeather(0);
   private heartbeat!: HeartbeatService;
   private runtime!: ResourceRuntime;
   private secondaryInventories = new Map<string,Map<string,ItemState>>();
@@ -144,6 +152,7 @@ class WorldRoom extends Room<WorldState> {
       },
     );
     this.heartbeat.start();
+    this.clock.setInterval(()=>this.advanceWeather(),30*60_000);
   }
 
   onJoin(client:Client){
@@ -175,6 +184,7 @@ class WorldRoom extends Room<WorldState> {
     client.send('chat_history',this.chatHistory.slice(-30));
     client.send('heartbeat_status',{mode:this.state.heartbeatMode,lastAt:this.state.heartbeatLastAt,sequence:this.state.heartbeatSequence,summary:this.state.heartbeatSummary});
     client.send('resource_status',{resources:this.runtime.listResources()});
+    client.send('weather_state',this.weather);
     client.send('event',{text:'Connected to Port Mercy.'});
     void this.runtime.emitSystem('player:joined',{name:p.name},{actorId:client.sessionId,roomId:p.roomId,ai:'never'});
   }
@@ -339,6 +349,8 @@ class WorldRoom extends Room<WorldState> {
     };
   }
 
+  private advanceWeather(){this.weatherIndex=(this.weatherIndex+1)%WEATHER_STEPS.length;this.weather=makeWeather(this.weatherIndex);this.broadcast('weather_state',this.weather);const text=`Weather shifts across South Ward: ${this.weather.label.toLowerCase()}.`;for(const roomId of Object.keys(ROOM_NAMES) as RoomId[]){if(ROOM_NAMES[roomId].environment==='outdoor')this.remember(roomId,text)}}
+
   private makeHeartbeatSnapshot(sequence:number):WorldSnapshot{
     const players=[] as WorldSnapshot['players'];
     this.state.players.forEach((p,id)=>players.push({
@@ -378,16 +390,16 @@ class WorldRoom extends Room<WorldState> {
       heartbeatNumber:sequence,
       capturedAt:new Date().toISOString(),
       worldClock:new Date().toISOString(),
-      weather:'Cold coastal rain, wet pavement, low cloud and light harbor wind.',
+      weather:`${this.weather.label}: ${this.weather.detail}`,
       rooms,
       players,
       npcs:[
         {id:'rita.vale',name:'Rita Vale',roomId:'southward.diner',role:'diner owner',motivation:'Keep the diner solvent and look after regulars without becoming their rescuer.'},
-        {id:'mercy.fuel.clerk',name:'Night clerk',roomId:'southward.gas.forecourt',role:'night cashier',motivation:'Finish the shift safely, avoid theft, and keep the pumps working.'},
+        {id:'mercy.fuel.clerk',name:'Maya Torres',roomId:'southward.mercyfuel.interior',role:'night cashier',motivation:'Finish the shift safely, avoid theft, and keep the store and pumps running.'},
         {id:'marrow.tenant',name:'Tired tenant',roomId:'southward.apartment.lobby',role:'resident',motivation:'Get upstairs, avoid trouble, and make rent.'},
       ],
       businesses:[
-        {id:'mercy.fuel',name:'Mercy Fuel & Mart',roomId:'southward.gas.forecourt',open:true,pressure:'thin overnight staffing and aging pumps'},
+        {id:'mercy.fuel',name:'Mercy Fuel & Mart',roomId:'southward.mercyfuel.interior',open:true,pressure:'thin overnight staffing and aging pumps'},
         {id:'ritas.diner',name:"Rita's Diner",roomId:'southward.diner',open:true,pressure:'slow graveyard trade and food-cost pressure'},
       ],
       vehicles:[...this.vehicles.values()].map(v=>({id:v.id,label:v.label,roomId:v.roomId,status:`${v.status}; ${v.locked?'locked':'unlocked'}`})),
@@ -442,7 +454,7 @@ class WorldRoom extends Room<WorldState> {
 }
 
 const app=express();
-app.get('/health',(_q,r)=>r.json({ok:true,service:'port-mercy',version:'0.6.0'}));
+app.get('/health',(_q,r)=>r.json({ok:true,service:'port-mercy',version:'0.7.0'}));
 const server=http.createServer(app);
 const gameServer=new Server({transport:new WebSocketTransport({server})});
 gameServer.define('world',WorldRoom);

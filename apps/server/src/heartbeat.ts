@@ -3,6 +3,7 @@ import { createInterface, type Interface } from 'node:readline';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { GAME_VERSION } from '@portmercy/protocol';
 
 export type HeartbeatMode = 'codex' | 'offline';
 
@@ -224,7 +225,7 @@ export class CodexHeartbeatProvider implements HeartbeatProvider {
     this.lines.on('line', line => this.handleLine(line));
 
     await this.request('initialize', {
-      clientInfo: { name: 'port_mercy_world_heartbeat', title: 'Port Mercy World Heartbeat', version: '0.5.0' },
+      clientInfo: { name: 'port_mercy_world_heartbeat', title: 'Port Mercy World Heartbeat', version: GAME_VERSION },
     });
     this.notify('initialized', {});
 

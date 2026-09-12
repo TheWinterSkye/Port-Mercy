@@ -6,32 +6,24 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import { Schema, MapSchema, defineTypes } from '@colyseus/schema';
 import { HeartbeatService, type HeartbeatResult, type WorldMutation, type WorldSnapshot } from './heartbeat.js';
 import { ResourceRuntime, resolveResourcesDirectory } from './runtime.js';
+import { PersistenceStore, type PersistedCharacter, type PersistedItem } from './persistence.js';
+import { GAME_VERSION, WORLD_CATALOG, WORLD_ROOM_IDS, type RoomId } from '@portmercy/protocol';
 
-type RoomId = 'southward.gas.forecourt'|'southward.mercyfuel.interior'|'southward.diner'|'southward.alley'|'southward.apartment.lobby';
 type ChatScope = 'room'|'global';
-
 type ChatPayload = { scope?:ChatScope; text?:string };
 type ItemPayload = { itemId?:string };
 type InventoryOpenPayload = { inventoryType?:string; inventoryId?:string; compartment?:string };
 type VehicleStoragePayload = { vehicleId?:string; compartment?:'trunk'|'glovebox' };
 
-const EXITS:Record<RoomId,Record<string,RoomId>> = {
-  'southward.gas.forecourt': { west:'southward.diner', east:'southward.alley', inside:'southward.mercyfuel.interior' },
-  'southward.mercyfuel.interior': { outside:'southward.gas.forecourt' },
-  'southward.diner': { east:'southward.gas.forecourt' },
-  'southward.alley': { west:'southward.gas.forecourt' },
-  'southward.apartment.lobby': {}
-};
+const EXITS = Object.fromEntries(WORLD_ROOM_IDS.map(id => [id, WORLD_CATALOG[id].exits])) as Record<RoomId,Record<string,RoomId>>;
+const ROOM_NAMES = Object.fromEntries(WORLD_ROOM_IDS.map(id => [id, {
+  name: WORLD_CATALOG[id].name,
+  district: WORLD_CATALOG[id].district,
+  environment: WORLD_CATALOG[id].environment,
+  weatherZone: WORLD_CATALOG[id].weatherZone,
+}])) as Record<RoomId,{name:string;district:string;environment:'outdoor'|'indoor';weatherZone:string}>;
 
-const ROOM_NAMES:Record<RoomId,{name:string;district:string;environment:'outdoor'|'indoor';weatherZone:string}> = {
-  'southward.gas.forecourt': {name:'Mercy Fuel & Mart',district:'South Ward',environment:'outdoor',weatherZone:'southward'},
-  'southward.mercyfuel.interior': {name:'Mercy Fuel · Store Interior',district:'South Ward',environment:'indoor',weatherZone:'southward'},
-  'southward.diner': {name:"Rita's Diner",district:'South Ward',environment:'indoor',weatherZone:'southward'},
-  'southward.alley': {name:'Mercy Service Alley',district:'South Ward',environment:'outdoor',weatherZone:'southward'},
-  'southward.apartment.lobby': {name:'Marrow Apartments',district:'South Ward',environment:'indoor',weatherZone:'southward'},
-};
-
-const VALID_ROOM_IDS = new Set<RoomId>(Object.keys(ROOM_NAMES) as RoomId[]);
+const VALID_ROOM_IDS = new Set<RoomId>(WORLD_ROOM_IDS);
 const VALID_NPCS = new Set(['rita.vale','mercy.fuel.clerk','marrow.tenant']);
 const VALID_BUSINESSES = new Set(['mercy.fuel','ritas.diner']);
 const VALID_JOBS = new Set(['mercy.fuel.stock','ritas.dishwasher']);
@@ -44,12 +36,11 @@ class ItemState extends Schema {
 defineTypes(ItemState,{id:'string',templateId:'string',name:'string',kind:'string',quantity:'number',weight:'number',description:'string',usable:'boolean',droppable:'boolean',metadataJson:'string'});
 
 class Player extends Schema {
-  name='Player'; roomId:RoomId='southward.gas.forecourt'; cash=83; bank=640; health=100; stress=18; job='Unemployed'; jobId='unemployed'; onDuty=false;
-  legalName='Player'; dateOfBirth='1992-08-17'; homeAddress='18 Marrow Avenue, Apt 3B'; licenseNumber='PM-0000-0000'; skillsJson='{"driving":18,"labor":12,"streetwise":8}';
-  phoneNumber='(346) 555-0100';
-  inventory=new MapSchema<ItemState>();
+  accountId=''; characterId=''; name='Player'; roomId:RoomId='southward.gas.forecourt'; cash=83; bank=640; health=100; stress=18; job='Unemployed'; jobId='unemployed'; onDuty=false;
+  legalName='Player'; dateOfBirth='1992-08-17'; homeAddress='18 Marrow Avenue, Apt 3B'; licenseNumber='PM-0000-0000'; sexMarker='X'; height='5 ft 7 in'; eyes='Brown'; skillsJson='{"driving":18,"labor":12,"streetwise":8}';
+  phoneNumber='(555) 210-0000'; inventory=new MapSchema<ItemState>();
 }
-defineTypes(Player,{name:'string',roomId:'string',cash:'number',bank:'number',health:'number',stress:'number',job:'string',jobId:'string',onDuty:'boolean',legalName:'string',dateOfBirth:'string',homeAddress:'string',licenseNumber:'string',skillsJson:'string',phoneNumber:'string',inventory:{map:ItemState}});
+defineTypes(Player,{accountId:'string',characterId:'string',name:'string',roomId:'string',cash:'number',bank:'number',health:'number',stress:'number',job:'string',jobId:'string',onDuty:'boolean',legalName:'string',dateOfBirth:'string',homeAddress:'string',licenseNumber:'string',sexMarker:'string',height:'string',eyes:'string',skillsJson:'string',phoneNumber:'string',inventory:{map:ItemState}});
 
 class WorldState extends Schema {
   players=new MapSchema<Player>();
@@ -63,7 +54,7 @@ defineTypes(WorldState,{players:{map:Player},heartbeatMode:'string',heartbeatLas
 
 type ChatMessage = { id:string; scope:ChatScope; from:string; text:string; roomId:RoomId; sentAt:number };
 type Incident = {id:string;type:string;roomId:RoomId;status:string;summary:string;createdAt:number};
-type VehicleRecord = {id:string;label:string;roomId:RoomId;status:string;locked:boolean;ownerId:string|null;registration:string;fuel:number;condition:number};
+type VehicleRecord = {id:string;label:string;roomId:RoomId;status:string;locked:boolean;ownerId:string|null;ownerCharacterId:string|null;registration:string;fuel:number;condition:number};
 type WeatherKind='clear'|'rain'|'fog'|'snow'|'storm';
 type WeatherWire={zone:string;type:WeatherKind;label:string;detail:string;intensity:number;seed:number;startedAt:number;nextAt:number};
 const WEATHER_STEPS:Array<Omit<WeatherWire,'zone'|'seed'|'startedAt'|'nextAt'>>=[{type:'rain',label:'Cold rain',detail:'harbor wind · wet pavement',intensity:.7},{type:'fog',label:'Dense fog',detail:'low visibility · harbor mist',intensity:.65},{type:'clear',label:'Clear night',detail:'cool air · dry streets',intensity:0},{type:'snow',label:'Wet snow',detail:'slush building on exposed streets',intensity:.55},{type:'storm',label:'Harbor squall',detail:'heavy rain · hard gusts',intensity:.9}];
@@ -95,9 +86,9 @@ function makeDriversLicense(p:Player){
       licenseNumber:p.licenseNumber,
       licenseClass:'C',
       expires:'2030-08-17',
-      sexMarker:'F',
-      height:'5 ft 7 in',
-      eyes:'Brown',
+      sexMarker:p.sexMarker,
+      height:p.height,
+      eyes:p.eyes,
       portraitUrl:'',
       portraitStatus:'pending',
     },
@@ -109,18 +100,26 @@ class WorldRoom extends Room<WorldState> {
   private chatHistory:ChatMessage[]=[];
   private recentActivity = new Map<RoomId,string[]>();
   private incidents:Incident[]=[];
+  private persistence=new PersistenceStore();
   private weatherIndex=0;
   private weather:WeatherWire=makeWeather(0);
   private heartbeat!: HeartbeatService;
   private runtime!: ResourceRuntime;
   private secondaryInventories = new Map<string,Map<string,ItemState>>();
   private vehicles = new Map<string,VehicleRecord>([
-    ['sedan.blue',{id:'sedan.blue',label:'faded blue sedan',roomId:'southward.gas.forecourt',status:'parked',locked:false,ownerId:null,registration:'PM-4817',fuel:62,condition:84}],
+    ['sedan.blue',{id:'sedan.blue',label:'faded blue sedan',roomId:'southward.gas.forecourt',status:'parked',locked:false,ownerId:null,ownerCharacterId:null,registration:'PM-4817',fuel:62,condition:84}],
   ]);
 
   async onCreate(){
     this.setState(new WorldState());
     for(const roomId of VALID_ROOM_IDS) this.recentActivity.set(roomId,[]);
+    this.ensureSecondaryInventory('vehicle:sedan.blue:trunk',[
+      makeItem('tool.jumper_cables','Jumper cables','tool','A cheap set of red and black jumper cables.',false,true,2.2),
+      makeItem('cloth.shop_rag','Shop rag','misc','An oily cotton rag that smells faintly of gasoline.',false,true,.1),
+    ]);
+    this.ensureSecondaryInventory('vehicle:sedan.blue:glovebox',[
+      makeItem('document.registration','Vehicle registration','document','Registration paperwork for the faded blue sedan.',true,false,.02,{vehicleId:'sedan.blue'}),
+    ]);
 
     this.runtime = new ResourceRuntime(this.buildRuntimeHost(), resolveResourcesDirectory());
     const resources = await this.runtime.loadAll();
@@ -155,57 +154,65 @@ class WorldRoom extends Room<WorldState> {
     this.clock.setInterval(()=>this.advanceWeather(),30*60_000);
   }
 
-  onJoin(client:Client){
-    const p=new Player();
-    p.name=`Resident-${client.sessionId.slice(0,4)}`;
-    p.legalName=p.name;
-    p.licenseNumber=`PM-${client.sessionId.slice(0,4).toUpperCase()}-${client.sessionId.slice(-4).toUpperCase()}`;
-    p.phoneNumber=`(346) 555-${String(100 + (this.state.players.size % 100)).padStart(4,'0')}`;
+  onJoin(client:Client,options:{characterToken?:string}={}){
+  const supplied=String(options?.characterToken||'').trim();
+  const token=/^[A-Za-z0-9_-]{20,100}$/.test(supplied)?supplied:randomUUID();
+  const saved=this.persistence.loadOrCreateCharacter(token);
+  const p=new Player();
+  p.accountId=saved.accountId;p.characterId=saved.characterId;p.name=saved.name;p.legalName=saved.legalName;p.dateOfBirth=saved.dateOfBirth;p.homeAddress=saved.homeAddress;
+  p.licenseNumber=saved.licenseNumber;p.sexMarker=saved.sexMarker;p.height=saved.height;p.eyes=saved.eyes;p.phoneNumber=saved.phoneNumber;p.cash=saved.cash;p.bank=saved.bank;
+  p.health=saved.health;p.stress=saved.stress;p.job=saved.job;p.jobId=saved.jobId;p.onDuty=saved.onDuty;p.roomId=this.validRoom(saved.roomId)?saved.roomId:'southward.gas.forecourt';p.skillsJson=saved.skillsJson;
+  const storedItems=this.persistence.loadItems(p.characterId);
+  if(storedItems.length){for(const row of storedItems)p.inventory.set(row.id,this.itemFromPersisted(row));}
+  else{
     for(const item of [
       makeItem('phone.basic','Cheap phone','phone','A scratched prepaid phone with a weak battery.',true,false,.2),
       makeItem('key.apartment','Apartment key','key','A brass key stamped 3B.',false,false,.05),
       makeDriversLicense(p),
       makeItem('water.bottle','Bottled water','consumable','Still cold from a corner-store refrigerator.',true,true,.5)
-    ]) p.inventory.set(item.id,item);
-    this.state.players.set(client.sessionId,p);
-
-    const sedan=this.vehicles.get('sedan.blue');
-    if(sedan && !sedan.ownerId){
-      sedan.ownerId=client.sessionId;
-      this.ensureSecondaryInventory('vehicle:sedan.blue:trunk',[
-        makeItem('tool.jumper_cables','Jumper cables','tool','A cheap set of red and black jumper cables.',false,true,2.2),
-        makeItem('cloth.shop_rag','Shop rag','misc','An oily cotton rag that smells faintly of gasoline.',false,true,.1),
-      ]);
-      this.ensureSecondaryInventory('vehicle:sedan.blue:glovebox',[
-        makeItem('document.registration','Vehicle registration','document','Registration paperwork for the faded blue sedan.',true,false,.02,{vehicleId:'sedan.blue'}),
-      ]);
-    }
-
-    client.send('chat_history',this.chatHistory.slice(-30));
-    client.send('heartbeat_status',{mode:this.state.heartbeatMode,lastAt:this.state.heartbeatLastAt,sequence:this.state.heartbeatSequence,summary:this.state.heartbeatSummary});
-    client.send('resource_status',{resources:this.runtime.listResources()});
-    client.send('weather_state',this.weather);
-    client.send('event',{text:'Connected to Port Mercy.'});
-    void this.runtime.emitSystem('player:joined',{name:p.name},{actorId:client.sessionId,roomId:p.roomId,ai:'never'});
+    ])p.inventory.set(item.id,item);
+    this.persistPlayerObject(p);
   }
+  this.state.players.set(client.sessionId,p);
+  client.send('identity_token',{characterToken:token,characterId:p.characterId});
+  client.send('chat_history',this.chatHistory.slice(-30));
+  client.send('heartbeat_status',{mode:this.state.heartbeatMode,lastAt:this.state.heartbeatLastAt,sequence:this.state.heartbeatSequence,summary:this.state.heartbeatSummary});
+  client.send('resource_status',{resources:this.runtime.listResources()});
+  client.send('weather_state',this.weather);
+  client.send('event',{text:'Connected to Port Mercy.'});
+  void this.runtime.emitSystem('player:joined',{name:p.name,characterId:p.characterId},{actorId:client.sessionId,roomId:p.roomId,ai:'never'});
+}
 
-  onLeave(client:Client){
-    const p=this.state.players.get(client.sessionId);
-    if(p) void this.runtime.emitSystem('player:left',{name:p.name},{actorId:client.sessionId,roomId:p.roomId,ai:'never'});
-    this.state.players.delete(client.sessionId);
-  }
+onLeave(client:Client){
+  const p=this.state.players.get(client.sessionId);
+  if(p){this.persistPlayerObject(p);void this.runtime.emitSystem('player:left',{name:p.name,characterId:p.characterId},{actorId:client.sessionId,roomId:p.roomId,ai:'never'});}
+  this.state.players.delete(client.sessionId);
+}
 
-  async onDispose(){ await this.heartbeat?.close(); }
+async onDispose(){
+  this.state.players.forEach(player=>this.persistPlayerObject(player));
+  await this.heartbeat?.close();
+  this.persistence.close();
+}
 
   private playerById(id?:string){ return id ? this.state.players.get(id) : undefined; }
   private player(client:Client){ return this.state.players.get(client.sessionId); }
+
+private itemFromPersisted(row:PersistedItem){
+  const item=new ItemState();item.id=row.id;item.templateId=row.templateId;item.name=row.name;item.kind=row.kind;item.quantity=row.quantity;item.weight=row.weight;item.description=row.description;item.usable=row.usable;item.droppable=row.droppable;item.metadataJson=row.metadataJson||'{}';return item;
+}
+private persistedCharacter(p:Player):PersistedCharacter{return {accountId:p.accountId,characterId:p.characterId,name:p.name,legalName:p.legalName,dateOfBirth:p.dateOfBirth,homeAddress:p.homeAddress,licenseNumber:p.licenseNumber,sexMarker:p.sexMarker,height:p.height,eyes:p.eyes,phoneNumber:p.phoneNumber,cash:p.cash,bank:p.bank,health:p.health,stress:p.stress,job:p.job,jobId:p.jobId,onDuty:p.onDuty,roomId:p.roomId,skillsJson:p.skillsJson};}
+private persistedItems(p:Player):PersistedItem[]{return (Array.from(p.inventory.values()) as ItemState[]).map(item=>({id:item.id,templateId:item.templateId,name:item.name,kind:item.kind,quantity:item.quantity,weight:item.weight,description:item.description,usable:item.usable,droppable:item.droppable,metadataJson:item.metadataJson||'{}'}));}
+private persistPlayerObject(p:Player){if(!p.characterId)return;this.persistence.saveCharacter(this.persistedCharacter(p));this.persistence.saveItems(p.characterId,this.persistedItems(p));}
+private persistPlayer(actorId?:string){const p=this.playerById(actorId);if(p)this.persistPlayerObject(p);}
+
 
   private async runClientAction(client:Client,name:unknown,payload:unknown){
     const p=this.player(client); if(!p)return;
     if(typeof name!=='string'||!this.runtime.isClientAction(name)){client.send('event',{text:'That action is not available to the client.'});return;}
     const result=await this.runtime.executeClient(name,{actorId:client.sessionId,roomId:p.roomId,payload});
     if(result.ok===false)client.send('event',{text:result.reason});
-    else client.send('action_result',{name,correlationId:result.correlationId,ok:true});
+    else client.send('action_result',{name,correlationId:result.correlationId,ok:true,value:result.value});
   }
 
   private async runAction(client:Client,name:string,payload:unknown){
@@ -267,6 +274,7 @@ class WorldRoom extends Room<WorldState> {
 
     if(toId===playerId)player.inventory.set(item.id,item);
     else this.ensureSecondaryInventory(toId).set(item.id,item);
+    this.persistPlayer(actorId);
     return {itemId:item.id,templateId:item.templateId,fromInventory:fromId,toInventory:toId,count:item.quantity};
   }
 
@@ -320,32 +328,38 @@ class WorldRoom extends Room<WorldState> {
       sendChat:(actorId:string|undefined,scope:ChatScope,text:string)=>this.sendChat(actorId,scope,text),
       movePlayer:(actorId:string|undefined,direction:string)=>{
         const p=this.playerById(actorId);if(!p)return null;
-        const dir=direction.toLowerCase();const from=p.roomId;const next=EXITS[from]?.[dir];if(!next)return null;p.roomId=next;return {playerId:actorId,name:p.name,from,to:next,direction:dir};
+        const dir=direction.toLowerCase();const from=p.roomId;const next=EXITS[from]?.[dir];if(!next)return null;p.roomId=next;this.persistPlayer(actorId);return {playerId:actorId,name:p.name,from,to:next,direction:dir};
       },
       setPlayerRoom:(actorId:string|undefined,roomId:string)=>{
-        const p=this.playerById(actorId);if(!p||!this.validRoom(roomId))return false;p.roomId=roomId;return true;
+        const p=this.playerById(actorId);if(!p||!this.validRoom(roomId))return false;p.roomId=roomId;this.persistPlayer(actorId);return true;
       },
       createItem:(...args:Parameters<typeof makeItem>)=>makeItem(...args),
-      addPlayerItem:(actorId:string|undefined,item:ItemState)=>{const p=this.playerById(actorId);if(!p)return false;p.inventory.set(item.id,item);return true},
+      addPlayerItem:(actorId:string|undefined,item:ItemState)=>{const p=this.playerById(actorId);if(!p)return false;p.inventory.set(item.id,item);this.persistPlayer(actorId);return true},
       getPlayerItem:(actorId:string|undefined,itemId?:string)=>{const p=this.playerById(actorId);return p&&itemId?p.inventory.get(itemId):undefined},
-      removePlayerItem:(actorId:string|undefined,itemId:string)=>this.playerById(actorId)?.inventory.delete(itemId)??false,
+      removePlayerItem:(actorId:string|undefined,itemId:string)=>{const p=this.playerById(actorId);if(!p)return false;const removed=p.inventory.delete(itemId);if(removed)this.persistPlayer(actorId);return removed},
       itemMetadata:(item:ItemState)=>this.itemMetadata(item),
       resolveInventory:(actorId:string|undefined,spec:any)=>this.resolveInventory(actorId,spec),
       resolveInventoryByCanonicalId:(actorId:string|undefined,id:string)=>this.resolveInventoryByCanonicalId(actorId,id),
       moveInventoryItem:(actorId:string|undefined,payload:any)=>this.moveInventoryItem(actorId,payload),
-      adjustStress:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;p.stress=Math.max(0,Math.min(100,p.stress+delta));return p.stress},
-      adjustCash:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;p.cash=Math.max(0,p.cash+delta);return p.cash},
-      adjustBank:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;p.bank=Math.max(0,p.bank+delta);return p.bank},
+      adjustStress:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;p.stress=Math.max(0,Math.min(100,p.stress+delta));this.persistPlayer(actorId);return p.stress},
+      adjustCash:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;const next=p.cash+Math.trunc(delta);if(!Number.isSafeInteger(next)||next<0)return null;p.cash=next;this.persistPlayer(actorId);return p.cash},
+      adjustBank:(actorId:string|undefined,delta:number)=>{const p=this.playerById(actorId);if(!p)return null;const next=p.bank+Math.trunc(delta);if(!Number.isSafeInteger(next)||next<0)return null;p.bank=next;this.persistPlayer(actorId);return p.bank},
       getBank:(actorId:string|undefined)=>this.playerById(actorId)?.bank??null,
+    transferBankByPhone:(actorId:string|undefined,toPhone:string,amount:number)=>{
+      const source=this.playerById(actorId);if(!source)return null;
+      const result=this.persistence.transferBank(source.characterId,toPhone,amount);source.bank=result.fromBalance;
+      let targetActorId:string|null=null;this.state.players.forEach((player,id)=>{if(player.characterId===result.toCharacterId){player.bank=result.toBalance;targetActorId=id;}});
+      this.persistPlayer(actorId);return {...result,targetActorId};
+    },
       getSkill:(actorId:string|undefined,skill:string)=>{const p=this.playerById(actorId);if(!p)return 0;try{return Number(JSON.parse(p.skillsJson||'{}')[skill]||0)}catch{return 0}},
-      setPlayerJob:(actorId:string|undefined,jobId:string,label:string,onDuty:boolean)=>{const p=this.playerById(actorId);if(!p)return false;p.jobId=jobId;p.job=label;p.onDuty=onDuty;return true},
-      setOnDuty:(actorId:string|undefined,onDuty:boolean)=>{const p=this.playerById(actorId);if(!p)return false;p.onDuty=onDuty;return true},
+      setPlayerJob:(actorId:string|undefined,jobId:string,label:string,onDuty:boolean)=>{const p=this.playerById(actorId);if(!p)return false;p.jobId=jobId;p.job=label;p.onDuty=onDuty;this.persistPlayer(actorId);return true},
+      setOnDuty:(actorId:string|undefined,onDuty:boolean)=>{const p=this.playerById(actorId);if(!p)return false;p.onDuty=onDuty;this.persistPlayer(actorId);return true},
       addIncident:(data:Omit<Incident,'id'|'createdAt'>)=>{const incident:Incident={id:randomUUID(),createdAt:Date.now(),...data};this.incidents.push(incident);if(this.incidents.length>100)this.incidents.shift();return incident},
       getVehicle:(vehicleId?:string)=>vehicleId?this.vehicles.get(vehicleId):undefined,
       setVehicleRoom:(vehicleId:string|undefined,roomId:string)=>{const v=vehicleId?this.vehicles.get(vehicleId):undefined;if(!v||!this.validRoom(roomId))return false;v.roomId=roomId;return true},
       setVehicleLock:(actorId:string|undefined,vehicleId?:string,locked=false)=>{const v=vehicleId?this.vehicles.get(vehicleId):undefined;if(!v||v.ownerId!==actorId)return null;v.locked=locked;return {...v}},
       vehicleSnapshot:()=>[...this.vehicles.values()].map(v=>({id:v.id,label:v.label,roomId:v.roomId,status:v.status,locked:v.locked,registration:v.registration,fuel:v.fuel,condition:v.condition})),
-      roomSnapshot:()=>[...(Object.keys(ROOM_NAMES) as RoomId[])].map(id=>({id,...ROOM_NAMES[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),
+      roomSnapshot:()=>WORLD_ROOM_IDS.map(id=>({...WORLD_CATALOG[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),
     };
   }
 
@@ -454,7 +468,7 @@ class WorldRoom extends Room<WorldState> {
 }
 
 const app=express();
-app.get('/health',(_q,r)=>r.json({ok:true,service:'port-mercy',version:'0.7.0'}));
+app.get('/health',(_q,r)=>r.json({ok:true,service:'port-mercy',version:GAME_VERSION}));
 const server=http.createServer(app);
 const gameServer=new Server({transport:new WebSocketTransport({server})});
 gameServer.define('world',WorldRoom);

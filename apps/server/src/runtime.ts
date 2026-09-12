@@ -42,6 +42,20 @@ export type ResourceManifest = {
   };
 };
 
+export function validateManifest(value: unknown, source = 'pmresource.json'): ResourceManifest {
+  if (!value || typeof value !== 'object') throw new Error(`Invalid resource manifest: ${source}`);
+  const manifest = value as ResourceManifest;
+  if (!manifest.name || typeof manifest.name !== 'string') throw new Error(`Resource manifest missing name: ${source}`);
+  if (!manifest.version || typeof manifest.version !== 'string') throw new Error(`Resource manifest missing version: ${source}`);
+  if (!manifest.server || typeof manifest.server !== 'string') throw new Error(`Resource manifest missing server: ${source}`);
+  for (const [label, list] of [['dependencies', manifest.dependencies], ['clientActions', manifest.clientActions]] as const) {
+    if (list !== undefined && (!Array.isArray(list) || list.some(entry => typeof entry !== 'string' || !entry))) throw new Error(`Invalid ${label} in ${source}`);
+  }
+  const events = manifest.heartbeat?.events;
+  if (events && Object.values(events).some(value => !['never','summary','full'].includes(value))) throw new Error(`Invalid heartbeat event policy in ${source}`);
+  return manifest;
+}
+
 type EventHandler = (event: GameEvent) => void | Promise<void>;
 type ActionHandler = (ctx: ResourceActionContext, payload: any) => unknown | Promise<unknown>;
 type ActionHook = (ctx: ResourceActionContext, payload: any) => boolean | void | string | { allow: boolean; reason?: string } | Promise<boolean | void | string | { allow: boolean; reason?: string }>;
@@ -134,8 +148,7 @@ export class ResourceRuntime {
       if (!statSync(directory).isDirectory()) continue;
       const manifestPath = join(directory, 'pmresource.json');
       if (!existsSync(manifestPath)) continue;
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as ResourceManifest;
-      if (!manifest.name || !manifest.version || !manifest.server) throw new Error(`Invalid resource manifest: ${manifestPath}`);
+      const manifest = validateManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), manifestPath);
       resources.push({ manifest, directory });
     }
     return resources;

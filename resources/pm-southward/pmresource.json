@@ -1,0 +1,15 @@
+{
+  "$schema": "../pmresource.schema.json",
+  "name": "pm-southward",
+  "version": "0.8.0",
+  "description": "South Ward room-specific verbs and interaction registrations.",
+  "server": "server.mjs",
+  "dependencies": [
+    "pm-interactions",
+    "pm-world",
+    "pm-vehicles"
+  ],
+  "heartbeat": {
+    "events": {}
+  }
+}

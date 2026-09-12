@@ -1,12 +1,10 @@
 {
   "$schema": "../pmresource.schema.json",
   "name": "pm-interactions",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "description": "Shared room/entity contextual interaction registry without 3D targeting.",
   "server": "server.mjs",
-  "dependencies": [
-    "pm-world"
-  ],
+  "dependencies": [],
   "heartbeat": {
     "events": {
       "interaction:used": "never"

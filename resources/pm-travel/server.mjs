@@ -2,12 +2,16 @@ import { randomUUID } from 'node:crypto';
 
 export async function setup(ctx) {
   const sessions = new Map();
+  const registerInteraction = ctx.exports.get('pm-interactions','register');
   const routes = new Map([
     ['southward.gas.forecourt>southward.diner', { seconds: 18, label: 'Harbor Avenue westbound' }],
     ['southward.diner>southward.gas.forecourt', { seconds: 18, label: 'Harbor Avenue eastbound' }],
     ['southward.gas.forecourt>southward.alley', { seconds: 12, label: 'service road' }],
     ['southward.alley>southward.gas.forecourt', { seconds: 12, label: 'service road' }]
   ]);
+
+  registerInteraction('room:southward.gas.forecourt',{id:'drive-ritas',label:"Drive to Rita's",action:'travel:start',payload:{vehicleId:'sedan.blue',destination:'southward.diner'},roomId:'southward.gas.forecourt',order:90});
+  registerInteraction('room:southward.diner',{id:'drive-mercy-fuel',label:'Drive to Mercy Fuel',action:'travel:start',payload:{vehicleId:'sedan.blue',destination:'southward.gas.forecourt'},roomId:'southward.diner',order:90});
 
   const publicSession = session => {
     if (!session) return null;
@@ -94,7 +98,7 @@ export async function setup(ctx) {
     const vehicle = ctx.host.getVehicle(payload?.vehicleId);
     if (!player || !vehicle) throw new Error('Travel is unavailable.');
     if (vehicle.roomId !== player.roomId) throw new Error('That vehicle is not here.');
-    if (vehicle.ownerId && vehicle.ownerId !== action.actorId) throw new Error('You do not have the keys to that vehicle.');
+    if (vehicle.ownerId && vehicle.ownerId !== action.actorId && vehicle.ownerCharacterId !== player.characterId) throw new Error('You do not have the keys to that vehicle.');
     const destination = String(payload?.destination || '');
     const route = routes.get(`${player.roomId}>${destination}`);
     if (!route) throw new Error('There is no drivable route to that destination yet.');

@@ -15,6 +15,7 @@ export async function setup(ctx) {
     tasks: {
       stock_delivery: {
         label: 'Move delivery boxes to the stock room',
+        durationMs: 12000,
         pay: 14,
         stress: 4,
         playerText: 'You haul two boxes into the stock room. +$14, +4 stress.',
@@ -22,5 +23,5 @@ export async function setup(ctx) {
       }
     }
   });
-  registerInteraction('room:southward.gas.forecourt', { id: 'fuel-stock-shift', label: 'Unload delivery', action: 'job:performAvailable', payload: {}, roomId: 'southward.gas.forecourt' });
+  registerInteraction('room:southward.gas.forecourt', { id: 'fuel-stock-shift', label: 'Unload delivery', action: 'job:performAvailable', payload: {}, roomId: 'southward.gas.forecourt', order: 10 });
 }

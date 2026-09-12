@@ -1,10 +1,13 @@
 name: Port Mercy hardening materialize
+
 on:
   push:
-    branches: [hardening-0.8]
-    paths: [.hardening/ready]
+    branches: ['hardening-0.8']
+    paths: ['.hardening/ready']
+
 permissions:
   contents: write
+
 jobs:
   harden:
     runs-on: ubuntu-latest
@@ -17,26 +20,7 @@ jobs:
         run: |
           cat .hardening/part*.b64 | tr -d '\n' | base64 -d | gzip -d > /tmp/apply.py
           python /tmp/apply.py
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('apps/web/src/main.tsx')
-          s=p.read_text().replace('(room.exits as Partial<Record<Direction,RoomId>>)[dir];','(room.exits as Partial<Record<Direction,RoomId>>)[dir as Direction];')
-          p.write_text(s)
-
-          p=Path('apps/server/src/index.ts')
-          s=p.read_text()
-          anchor="import { GAME_VERSION, WORLD_CATALOG, WORLD_ROOM_IDS, type RoomId } from '@portmercy/protocol';\n"
-          aliases="""\ntype ChatScope = 'room'|'global';
-type ChatPayload = { scope?:ChatScope; text?:string };
-type ItemPayload = { itemId?:string };
-type InventoryOpenPayload = { inventoryType?:string; inventoryId?:string; compartment?:string };
-type VehicleStoragePayload = { vehicleId?:string; compartment?:'trunk'|'glovebox' };
-"""
-          if 'type ChatScope =' not in s:
-              s=s.replace(anchor,anchor+aliases)
-          s=s.replace("roomSnapshot:()=>WORLD_ROOM_IDS.map(id=>({id,...WORLD_CATALOG[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),","roomSnapshot:()=>WORLD_ROOM_IDS.map(id=>({...WORLD_CATALOG[id],recentActivity:[...(this.recentActivity.get(id)??[])].slice(-10)})),")
-          p.write_text(s)
-          PY
+          python .hardening/fix.py
       - name: Commit materialized hardening source
         run: |
           git config user.name "github-actions[bot]"

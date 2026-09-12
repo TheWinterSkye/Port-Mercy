@@ -6,8 +6,8 @@ export async function setup(ctx) {
     const player = ctx.host.getPlayer(action.actorId);
     if (!player) throw new Error('Account holder is unavailable.');
     const value = { accounts: [
-      { id: `checking:${action.actorId}`, label: 'Checking', type: 'personal', balance: ctx.host.getBank(action.actorId) ?? 0 },
-      { id: `cash:${action.actorId}`, label: 'Cash on hand', type: 'cash', balance: player.cash }
+      { id: `checking:${player.characterId}`, label: 'Checking', type: 'personal', balance: ctx.host.getBank(action.actorId) ?? 0 },
+      { id: `cash:${player.characterId}`, label: 'Cash on hand', type: 'cash', balance: player.cash }
     ] };
     ctx.host.send(action.actorId, 'bank_state', value);
     return value;
@@ -15,13 +15,11 @@ export async function setup(ctx) {
 
   ctx.actions.register('bank:transfer', async (action, payload) => {
     const amount = Math.floor(Number(payload?.amount || 0));
-    const target = ctx.host.findPlayerByPhone(String(payload?.toPhone || ''));
-    if (!target || amount <= 0) throw new Error('Invalid transfer.');
-    const balance = ctx.host.getBank(action.actorId) ?? 0;
-    if (balance < amount) throw new Error('Insufficient funds.');
-    ctx.host.adjustBank(action.actorId, -amount); ctx.host.adjustBank(target.id, amount);
-    ctx.host.send(target.id, 'bank_notice', { text: `A $${amount} transfer reached your checking account.` });
-    await action.emit('bank:transferCompleted', { amount, to: target.player.phoneNumber }, { roomId: action.roomId });
-    return { amount, balance: ctx.host.getBank(action.actorId) };
+    if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 5000) throw new Error('Transfer amount must be between $1 and $5,000.');
+    const result = ctx.host.transferBankByPhone(action.actorId, String(payload?.toPhone || ''), amount);
+    if (!result) throw new Error('Transfer could not be completed.');
+    if (result.targetActorId) ctx.host.send(result.targetActorId, 'bank_notice', { text: `A $${amount} transfer reached your checking account.` });
+    await action.emit('bank:transferCompleted', { transactionId: result.transactionId, amount, to: result.toPhone }, { roomId: action.roomId });
+    return { transactionId: result.transactionId, amount, balance: result.fromBalance, to: result.toPhone };
   });
 }

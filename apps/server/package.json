@@ -1,12 +1,16 @@
 {
   "name": "@portmercy/server",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.8.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@colyseus/core": "^0.16.22",

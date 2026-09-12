@@ -7,10 +7,12 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "start": "node --env-file-if-exists=.env dist/index.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "test:integration": "node --test test/compiled-smoke.test.mjs"
   },
   "dependencies": {
     "@colyseus/core": "^0.16.22",
@@ -21,8 +23,9 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
+    "@types/node": "^22.0.0",
+    "colyseus.js": "^0.16.22",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2",
-    "@types/node": "^22.0.0"
+    "typescript": "^5.9.2"
   }
 }

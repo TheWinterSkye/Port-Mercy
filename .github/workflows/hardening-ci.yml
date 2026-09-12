@@ -1,4 +1,4 @@
-name: Port Mercy hardening materialize
+name: Port Mercy hardening verify
 
 on:
   push:
@@ -9,28 +9,16 @@ permissions:
   contents: write
 
 jobs:
-  harden:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply integration patches
-        run: |
-          cat .hardening/part*.b64 | tr -d '\n' | base64 -d | gzip -d > /tmp/apply.py
-          python /tmp/apply.py
-          python .hardening/fix.py
-      - name: Commit materialized hardening source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps packages resources package.json
-          git diff --cached --quiet || git commit -m "Materialize hardening source changes"
-          git push origin HEAD:hardening-0.8
       - name: Install
         run: npm install --no-audit --no-fund
-      - name: Tests
+      - name: Unit tests
         run: npm test
       - name: Typecheck
         run: npm run typecheck

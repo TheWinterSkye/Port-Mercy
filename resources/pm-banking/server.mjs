@@ -14,12 +14,15 @@ export async function setup(ctx) {
   });
 
   ctx.actions.register('bank:transfer', async (action, payload) => {
-    const amount = Math.floor(Number(payload?.amount || 0));
-    if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 5000) throw new Error('Transfer amount must be between $1 and $5,000.');
-    const result = ctx.host.transferBankByPhone(action.actorId, String(payload?.toPhone || ''), amount);
+    if (!payload || typeof payload !== 'object') throw new Error('Invalid transfer request.');
+    if (typeof payload.amount !== 'number' || !Number.isSafeInteger(payload.amount) || payload.amount <= 0 || payload.amount > 5000) throw new Error('Transfer amount must be a whole number between $1 and $5,000.');
+    const toPhone = String(payload.toPhone || '').trim();
+    if (!/^\(?(?:\d{3})\)?[\s.-]*\d{3}[\s.-]*\d{4}$/.test(toPhone)) throw new Error('Enter a valid phone number.');
+    const requestKey = action.correlationId;
+    const result = ctx.host.transferBankByPhone(action.actorId, toPhone, payload.amount, requestKey);
     if (!result) throw new Error('Transfer could not be completed.');
-    if (result.targetActorId) ctx.host.send(result.targetActorId, 'bank_notice', { text: `A $${amount} transfer reached your checking account.` });
-    await action.emit('bank:transferCompleted', { transactionId: result.transactionId, amount, to: result.toPhone }, { roomId: action.roomId });
-    return { transactionId: result.transactionId, amount, balance: result.fromBalance, to: result.toPhone };
+    if (result.targetActorId && !result.idempotent) ctx.host.send(result.targetActorId, 'bank_notice', { text: `A $${result.amount} transfer reached your checking account.` });
+    if (!result.idempotent) await action.emit('bank:transferCompleted', { transactionId: result.transactionId, amount: result.amount, to: result.toPhone }, { roomId: action.roomId });
+    return { transactionId: result.transactionId, amount: result.amount, balance: result.fromBalance, to: result.toPhone, idempotent: result.idempotent };
   });
 }
